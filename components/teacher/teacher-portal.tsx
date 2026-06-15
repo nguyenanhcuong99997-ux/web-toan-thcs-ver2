@@ -11,7 +11,6 @@ import {
   GraduationCap,
   Star,
   ClipboardCheck,
-  TrendingUp,
   CheckSquare,
   Upload,
   FileText,
@@ -21,6 +20,8 @@ import {
   Calendar,
   PlusCircle,
   Trash2,
+  ExternalLink,
+  Award,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -28,7 +29,6 @@ import { STUDENTS } from "@/lib/mock-data"
 import { StudentManagement } from "./student-management"
 import { LatexCreator } from "./latex-creator"
 
-// Cập nhật Type các View hiển thị trong hệ thống
 type View = "overview" | "students" | "progress" | "create" | "attendance" | "pdf-manager"
 
 interface TeacherPortalProps {
@@ -36,7 +36,6 @@ interface TeacherPortalProps {
   onLogout: () => void
 }
 
-// Thêm 2 mục mới vào Menu điều hướng chuẩn của Giáo viên
 const NAV = [
   { id: "overview" as View, label: "Tổng quan", icon: LayoutDashboard },
   { id: "students" as View, label: "Quản lý Học viên", icon: Users },
@@ -46,98 +45,102 @@ const NAV = [
   { id: "create" as View, label: "Soạn đề bài (LaTeX)", icon: PenSquare },
 ]
 
-// Mock data ban đầu cho danh sách file PDF luyện tập
 const INITIAL_PDFS = [
-  { id: "PDF001", title: "Đề thi thử Vào Lớp 10 chung Toàn Tỉnh - Đề số 1", grade: "9", category: "Thi thử vào 10", uploadDate: "2026-06-12", fileSize: "1.2 MB" },
-  { id: "PDF002", title: "Đề cương Tổng ôn tập Kiến thức trọng tâm Toán 8 học kỳ 2", grade: "8", category: "Tài liệu học tập", uploadDate: "2026-06-14", fileSize: "2.1 MB" },
+  { 
+    id: "PDF001", 
+    title: "Đề thi thử Vào Lớp 10 chung Toàn Tỉnh - Đề số 1", 
+    grade: "9", 
+    category: "Thi thử vào 10", 
+    uploadDate: "2026-06-12", 
+    fileSize: "Drive Link",
+    driveUrl: "https://drive.google.com/file/d/1Xxxxxx_Mã_File_Mẫu_1/view?usp=sharing"
+  },
+  { 
+    id: "PDF002", 
+    title: "Đề cương Tổng ôn tập Kiến thức trọng tâm Toán 8 học kỳ 2", 
+    grade: "8", 
+    category: "Tài liệu học tập", 
+    uploadDate: "2026-06-14", 
+    fileSize: "Drive Link",
+    driveUrl: "https://drive.google.com/file/d/1Xxxxxx_Mã_File_Mẫu_2/view?usp=sharing"
+  },
 ]
 
 export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
   const [view, setView] = useState<View>("overview")
 
-  // Quản lý State cục bộ phục vụ cho Điểm danh & PDF
+  // Quản lý State điểm danh & Phát hành đề PDF
   const [attendanceDate, setAttendanceDate] = useState<string>("2026-06-15")
-  const [attendanceRecords, setAttendanceRecords] = useState<{ [key: string]: { [studentId: string]: string } }>({
-    "2026-06-15": {
-      "1": "Present", "2": "Present", "3": "Absent_Excused"
-    }
+  const [attendanceRecords, setAttendanceRecords] = useState<{ [date: string]: { [studentId: string]: string } }>({
+    "2026-06-12": { "1": "Present", "2": "Absent_Excused", "3": "Present" },
+    "2026-06-14": { "1": "Present", "2": "Present", "3": "Present" },
+    "2026-06-15": { "1": "Present", "2": "Present", "3": "Absent_Excused" }
   })
   
   const [pdfList, setPdfList] = useState(INITIAL_PDFS)
   const [newPdfTitle, setNewPdfTitle] = useState("")
   const [newPdfGrade, setNewPdfGrade] = useState("9")
   const [newPdfCategory, setNewPdfCategory] = useState("Thi thử vào 10")
-  
-  // State mới để lưu trữ File thật từ hệ thống máy tính
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [newPdfDriveUrl, setNewPdfDriveUrl] = useState("")
 
-  // Hàm xử lý thay đổi nhanh trạng thái điểm danh của học sinh
+  // Hàm xử lý thay đổi trạng thái điểm danh riêng biệt
   const handleAttendanceChange = (studentId: string, status: "Present" | "Absent_Excused" | "Absent_Unexcused") => {
-    setAttendanceRecords(prev => ({
-      ...prev,
-      [attendanceDate]: {
-        ...(prev[attendanceDate] || {}),
-        [studentId]: status
+    setAttendanceRecords(prev => {
+      const currentDayRecords = prev[attendanceDate] ? { ...prev[attendanceDate] } : {}
+      currentDayRecords[studentId] = status
+      
+      return {
+        ...prev,
+        [attendanceDate]: currentDayRecords
       }
-    }))
+    })
   }
 
-  // Hàm định dạng kích thước byte sang KB hoặc MB hiển thị trực quan
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i]
-  }
-
-  // Hàm lắng nghe sự kiện chọn tệp của thẻ input
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      if (file.type !== "application/pdf") {
-        alert("Hệ thống chỉ chấp nhận định dạng tệp tin .pdf")
-        return
-      }
-      if (file.size > 15 * 1024 * 1024) {
-        alert("Kích thước tệp tin vượt quá giới hạn 15MB")
-        return
-      }
-      setSelectedFile(file)
-      // Tự động điền tiêu đề bằng tên file (bỏ đuôi mở rộng) nếu giáo viên chưa nhập gì
-      if (!newPdfTitle.trim()) {
-        setNewPdfTitle(file.name.replace(/\.[^/.]+$/, ""))
-      }
-    }
-  }
-
-  // Hàm xử lý khi giáo viên bấm nút Upload file PDF lên hệ thống
+  // Hàm xử lý Phát hành tài liệu Google Drive mới
   const handleAddPdf = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newPdfTitle.trim()) {
       alert("Vui lòng điền tiêu đề cho tài liệu!")
       return
     }
-    if (!selectedFile) {
-      alert("Vui lòng đính kèm tệp tin tài liệu PDF trước khi phát hành!")
+    if (!newPdfDriveUrl.trim() || !newPdfDriveUrl.includes("drive.google.com")) {
+      alert("Vui lòng nhập đường liên kết hợp lệ từ Google Drive!")
       return
     }
 
     const newPdf = {
       id: `PDF00${pdfList.length + 1}`,
-      title: newPdfTitle,
+      title: newPdfTitle.trim(),
       grade: newPdfGrade,
       category: newPdfCategory,
       uploadDate: new Date().toISOString().split('T')[0],
-      fileSize: formatFileSize(selectedFile.size) // Lấy dung lượng thật của file vừa chọn
+      fileSize: "Drive Link",
+      driveUrl: newPdfDriveUrl.trim()
     }
 
     setPdfList([newPdf, ...pdfList])
-    
-    // Reset toàn bộ form sau khi đưa dữ liệu lên state thành công
     setNewPdfTitle("")
-    setSelectedFile(null)
-    alert("Đã đăng tải và phát hành tệp đề thi PDF thành công lên hệ thống học viên!")
+    setNewPdfDriveUrl("")
+    alert("Đã liên kết và phát hành tài liệu Google Drive thành công lên hệ thống học viên!")
+  }
+
+  // --- LOGIC HÀM TÍNH TỔNG SỐ BUỔI HỌC CỦA TỪNG HỌC SINH ---
+  const getStudentAttendanceStats = (studentId: string) => {
+    let presentCount = 0
+    let totalChecked = 0
+
+    // Duyệt qua toàn bộ lịch sử các ngày trong cơ sở dữ liệu tạm thời
+    Object.keys(attendanceRecords).forEach((date) => {
+      const record = attendanceRecords[date]?.[studentId]
+      if (record) {
+        totalChecked++
+        if (record === "Present") {
+          presentCount++
+        }
+      }
+    })
+
+    return { presentCount, totalChecked }
   }
 
   return (
@@ -210,14 +213,14 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
           ))}
         </div>
 
-        {/* Định tuyến hiển thị View tương ứng */}
+        {/* Nội dung vùng làm việc chính */}
         <div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
           {view === "overview" && <OverviewView pdfCount={pdfList.length} />}
           {view === "students" && <StudentManagement />}
           {view === "progress" && <ProgressView />}
           {view === "create" && <LatexCreator />}
 
-          {/* VIEW ĐIỂM DANH HỌC SINH MỚI TÍCH HỢP */}
+          {/* VIEW ĐIỂM DANH HỌC SINH */}
           {view === "attendance" && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -232,7 +235,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                     type="date"
                     value={attendanceDate}
                     onChange={(e) => setAttendanceDate(e.target.value)}
-                    className="border-none bg-transparent text-xs font-semibold focus:outline-none focus:ring-0"
+                    className="border-none bg-transparent text-xs font-semibold focus:outline-none focus:ring-0 cursor-pointer"
                   />
                 </div>
               </div>
@@ -244,46 +247,64 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                       <tr className="bg-muted/40 text-muted-foreground font-semibold border-b border-border">
                         <th className="px-6 py-4">Tên học viên</th>
                         <th className="px-6 py-4">Khối Lớp</th>
-                        <th className="px-6 py-4 text-center">Trạng thái điểm danh ngày {attendanceDate}</th>
+                        {/* BỔ SUNG CỘT TỔNG SỐ BUỔI HỌC THEO YÊU CẦU */}
+                        <th className="px-6 py-4 text-center bg-primary/5 text-primary font-bold">Tổng số buổi đi học</th>
+                        <th className="px-6 py-4 text-center">Trạng thái điểm danh</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {STUDENTS.map((student) => {
-                        const currentStatus = attendanceRecords[attendanceDate]?.[student.id] || "Present"
+                        const currentStatus = attendanceRecords[attendanceDate]?.[String(student.id)] || "Present"
+                        
+                        // Gọi hàm tính toán tổng số buổi đi học tích lũy của học sinh này
+                        const { presentCount, totalChecked } = getStudentAttendanceStats(String(student.id))
+
                         return (
                           <tr key={student.id} className="hover:bg-muted/10 transition-colors">
                             <td className="px-6 py-4 font-semibold text-foreground">{student.name}</td>
                             <td className="px-6 py-4 text-muted-foreground">Lớp {student.gradeId}</td>
+                            
+                            {/* HIỂN THỊ TỔNG SỐ BUỔI HỌC TÍCH LŨY */}
+                            <td className="px-6 py-4 text-center bg-primary/5">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                                <Award className="h-3.5 w-3.5" />
+                                {presentCount} / {totalChecked} buổi
+                              </span>
+                            </td>
+
                             <td className="px-6 py-4">
                               <div className="flex justify-center items-center gap-2">
                                 <button
+                                  type="button"
                                   onClick={() => handleAttendanceChange(String(student.id), "Present")}
                                   className={cn(
                                     "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
                                     currentStatus === "Present" 
-                                      ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm" 
+                                      ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm font-bold" 
                                       : "bg-background border-border text-muted-foreground hover:text-foreground"
                                   )}
                                 >
                                   <CheckCircle className="h-3.5 w-3.5" /> Có mặt
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => handleAttendanceChange(String(student.id), "Absent_Excused")}
                                   className={cn(
                                     "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
                                     currentStatus === "Absent_Excused" 
-                                      ? "bg-amber-50 border-amber-300 text-amber-700 shadow-sm" 
+                                      ? "bg-amber-50 border-amber-300 text-amber-700 shadow-sm font-bold" 
                                       : "bg-background border-border text-muted-foreground hover:text-foreground"
                                   )}
                                 >
                                   <AlertCircle className="h-3.5 w-3.5" /> Vắng có phép
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => handleAttendanceChange(String(student.id), "Absent_Unexcused")}
                                   className={cn(
                                     "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
                                     currentStatus === "Absent_Unexcused" 
-                                      ? "bg-rose-50 border-rose-300 text-rose-700 shadow-sm" 
+                                      ? "bg-rose-50 border-rose-300 text-rose-700 shadow-sm font-bold" 
                                       : "bg-background border-border text-muted-foreground hover:text-foreground"
                                   )}
                                 >
@@ -299,24 +320,26 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button onClick={() => alert("Hệ thống dữ liệu học bạ TrueMath đã đồng bộ bảng điểm danh thành công!")}>Lưu sổ điểm danh</Button>
+                <Button onClick={() => alert(`Đã đồng bộ và cập nhật thành công sổ điểm danh ngày ${attendanceDate} vào cơ sở dữ liệu TrueMath!`)}>
+                  Lưu sổ điểm danh
+                </Button>
               </div>
             </div>
           )}
 
-          {/* VIEW QUẢN LÝ TẢI FILE ĐỀ THI PDF ĐÃ SỬA TÍNH NĂNG THẬT */}
+          {/* VIEW QUẢN LÝ LINK ĐỀ THI PDF TỪ GOOGLE DRIVE */}
           {view === "pdf-manager" && (
             <div className="space-y-6">
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Quản lý & Đăng tải đề luyện tập PDF</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Đưa các file tài liệu, đề thi tự luận nâng cao định dạng PDF xuống kho đề của học sinh.</p>
+                <h1 className="text-2xl font-bold text-foreground">Quản lý &amp; Phát hành đề luyện tập PDF (Google Drive)</h1>
+                <p className="mt-1 text-sm text-muted-foreground">Dán đường liên kết tài liệu từ Google Drive của bạn xuống kho đề chuyên đề dành cho học viên.</p>
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {/* Form thêm tài liệu mới ở cột trái */}
+                {/* Form thêm tài liệu */}
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4 self-start">
                   <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <Upload className="h-4 w-4 text-primary" /> Đăng đề luyện mới
+                    <Upload className="h-4 w-4 text-primary" /> Phát hành tài liệu mới
                   </h2>
                   <form onSubmit={handleAddPdf} className="space-y-4">
                     <div className="space-y-1.5">
@@ -326,7 +349,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                         required
                         value={newPdfTitle}
                         onChange={(e) => setNewPdfTitle(e.target.value)}
-                        placeholder="Ví dụ: Đề khảo sát chất lượng giữa kì 2..."
+                        placeholder="Ví dụ: Đề khảo sát giữa kì 2 Toán 9..."
                         className="w-full bg-muted/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60"
                       />
                     </div>
@@ -359,83 +382,71 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                       </div>
                     </div>
 
-                    {/* VÙNG CHỌN FILE THẬT ĐƯỢC CẬP NHẬT */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground">Đính kèm tệp tin:</label>
-                      <label 
-                        className={cn(
-                          "border-2 border-dashed rounded-xl p-4 text-center bg-muted/20 cursor-pointer hover:border-primary/50 transition-all block relative",
-                          selectedFile ? "border-emerald-500/50 bg-emerald-50/10" : "border-border"
-                        )}
-                      >
-                        {/* Thẻ input file ẩn hoàn toàn để xử lý logic */}
-                        <input 
-                          type="file"
-                          accept=".pdf"
-                          className="hidden"
-                          onChange={handleFileSelect}
-                        />
-                        
-                        {selectedFile ? (
-                          <div className="space-y-1">
-                            <CheckCircle className="h-7 w-7 mx-auto text-emerald-500 mb-1" />
-                            <span className="text-xs font-semibold text-foreground block max-w-[200px] mx-auto truncate">
-                              {selectedFile.name}
-                            </span>
-                            <span className="text-[11px] text-muted-foreground block font-medium">
-                              ({formatFileSize(selectedFile.size)}) - Sẵn sàng
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <FileText className="h-7 w-7 mx-auto text-muted-foreground mb-1" />
-                            <span className="text-xs text-muted-foreground block font-medium">
-                              Nhấp để chọn file .pdf từ thiết bị
-                            </span>
-                            <span className="text-[10px] text-muted-foreground/60 block">
-                              Dung lượng tối đa hỗ trợ: 15MB
-                            </span>
-                          </div>
-                        )}
-                      </label>
+                      <label className="text-xs font-semibold text-muted-foreground">Đường liên kết Google Drive (Công khai):</label>
+                      <input 
+                        type="url"
+                        required
+                        value={newPdfDriveUrl}
+                        onChange={(e) => setNewPdfDriveUrl(e.target.value)}
+                        placeholder="https://drive.google.com/file/d/..."
+                        className="w-full bg-muted/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60"
+                      />
+                      <span className="text-[10px] text-muted-foreground/80 block leading-tight">
+                        💡 Lưu ý: Hãy chắc chắn bạn đã chuyển quyền truy cập của file Drive thành &quot;Bất kỳ ai có đường liên kết cũng xem được&quot;.
+                      </span>
                     </div>
 
                     <Button type="submit" className="w-full gap-1.5 py-2">
-                      <PlusCircle className="h-4 w-4" /> Phát hành tài liệu
+                      <PlusCircle className="h-4 w-4" /> Phát hành lên hệ thống
                     </Button>
                   </form>
                 </div>
 
-                {/* Danh sách các tài liệu PDF đã đưa lên ở cột phải */}
+                {/* Danh sách các tài liệu PDF đã đưa lên */}
                 <div className="lg:col-span-2 space-y-3">
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Danh sách đề PDF đang phát hành trên hệ thống</h2>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Danh sách đề đang hiển thị trên hệ thống học sinh</h2>
                   <div className="space-y-2.5">
                     {pdfList.map((pdf) => (
                       <div key={pdf.id} className="rounded-xl border border-border bg-card p-4 shadow-sm flex items-center justify-between text-sm">
-                        <div className="flex gap-3 items-center">
-                          <div className="p-2 bg-rose-50 border border-rose-100 rounded-lg text-rose-600">
+                        <div className="flex gap-3 items-center min-w-0 flex-1 mr-4">
+                          <div className="p-2 bg-rose-50 border border-rose-100 rounded-lg text-rose-600 shrink-0">
                             <FileText className="w-5 h-5" />
                           </div>
-                          <div className="space-y-0.5">
-                            <h4 className="font-semibold text-foreground">{pdf.title}</h4>
-                            <div className="flex items-center gap-3 text-muted-foreground text-xs">
+                          <div className="space-y-0.5 min-w-0 flex-1">
+                            <h4 className="font-semibold text-foreground truncate">{pdf.title}</h4>
+                            <div className="flex items-center gap-3 text-muted-foreground text-xs flex-wrap">
                               <span className="text-primary font-medium">{pdf.category}</span>
                               <span>• Khối Lớp {pdf.grade}</span>
-                              <span>• Dung lượng: {pdf.fileSize}</span>
+                              <span>• Nguồn: Google Drive</span>
                             </div>
                           </div>
                         </div>
-                        <button 
-                          onClick={() => {
-                            if(confirm("Bạn có chắc muốn gỡ file tài liệu PDF này xuống không?")) {
-                              setPdfList(prev => prev.filter(p => p.id !== pdf.id))
-                            }
-                          }}
-                          className="p-2 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
-                          title="Xóa tài liệu"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        
+                        <div className="flex items-center gap-2 shrink-0">
+                          <a 
+                            href={pdf.driveUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="p-2 text-muted-foreground hover:text-primary rounded-lg transition-colors border border-transparent hover:border-border"
+                            title="Xem trên Drive"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              if(confirm("Bạn có chắc muốn gỡ file tài liệu này xuống khỏi kho đề học sinh không?")) {
+                                setPdfList(prev => prev.filter(p => p.id !== pdf.id))
+                              }
+                            }}
+                            className="p-2 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                            title="Xóa tài liệu"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -449,7 +460,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
   )
 }
 
-// Component con OverviewView nhận prop hiển thị động số lượng tài liệu PDF lên KPI
 function OverviewView({ pdfCount }: { pdfCount: number }) {
   const totalStudents = STUDENTS.length
   const avgScore = (STUDENTS.reduce((a, s) => a + s.avgScore, 0) / totalStudents).toFixed(1)
@@ -467,7 +477,6 @@ function OverviewView({ pdfCount }: { pdfCount: number }) {
     count: STUDENTS.filter((s) => s.gradeId === g).length,
   }))
   const maxCount = Math.max(...gradeBreakdown.map((g) => g.count), 1)
-
   const topStudents = [...STUDENTS].sort((a, b) => b.avgScore - a.avgScore).slice(0, 5)
 
   return (
@@ -550,9 +559,7 @@ function ProgressView() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Tiến độ Lớp học</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Mức độ thành thạo trung bình của toàn lớp theo từng chủ đề kiến thức.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Mức độ thành thạo trung bình của toàn lớp theo từng chủ đề kiến thức.</p>
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -561,8 +568,7 @@ function ProgressView() {
           {CLASS_MASTERY.map((m) => {
             const label = m.percent >= 75 ? "Tốt" : m.percent >= 60 ? "Trung bình" : "Cần cải thiện"
             const tone = m.percent >= 75 ? "bg-emerald-500" : m.percent >= 60 ? "bg-primary" : "bg-amber-500"
-            const labelTone =
-              m.percent >= 75 ? "text-emerald-600" : m.percent >= 60 ? "text-primary" : "text-amber-600"
+            const labelTone = m.percent >= 75 ? "text-emerald-600" : m.percent >= 60 ? "text-primary" : "text-amber-600"
             return (
               <div key={m.topic}>
                 <div className="mb-1.5 flex items-center justify-between text-sm">
