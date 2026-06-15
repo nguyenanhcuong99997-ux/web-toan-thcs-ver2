@@ -9,7 +9,6 @@ import {
   LogOut,
   CheckCircle2,
   Target,
-  Flame,
   Clock,
   ChevronRight,
   ArrowLeft,
@@ -20,8 +19,8 @@ import {
   FileText,
   Download,
   CheckCircle,
-  XCircle,
   AlertCircle,
+  Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -55,11 +54,35 @@ const MOCK_ATTENDANCE = [
   { date: "2026-06-08", status: "Present", label: "Có mặt" },
 ]
 
-// Mock dữ liệu danh sách đề thi PDF nhận từ phía Giáo viên
+// Cập nhật Mock dữ liệu chứa đường link Google Drive đồng bộ với cổng Giáo viên
 const MOCK_DOWNLOADABLE_PDFS = [
-  { id: "PDF001", title: "Đề thi thử Vào Lớp 10 chung Toàn Tỉnh - Đề số 1", grade: "9", category: "Thi thử vào 10", uploadDate: "2026-06-12", fileSize: "1.2 MB" },
-  { id: "PDF002", title: "Đề cương Tổng ôn tập Kiến thức trọng tâm Toán 8 học kỳ 2", grade: "8", category: "Tài liệu học tập", uploadDate: "2026-06-14", fileSize: "2.1 MB" },
-  { id: "PDF003", title: "Chuyên đề Nâng cao: Bất đẳng thức và Cực trị Hình học", grade: "9", category: "Tài liệu học tập", uploadDate: "2026-06-15", fileSize: "950 KB" },
+  { 
+    id: "PDF001", 
+    title: "Đề thi thử Vào Lớp 10 chung Toàn Tỉnh - Đề số 1", 
+    grade: "9", 
+    category: "Thi thử vào 10", 
+    uploadDate: "2026-06-12", 
+    fileSize: "Drive Link",
+    driveUrl: "https://drive.google.com/file/d/1Xxxxxx_Mã_File_Mẫu_1/view?usp=sharing"
+  },
+  { 
+    id: "PDF002", 
+    title: "Đề cương Tổng ôn tập Kiến thức trọng tâm Toán 8 học kỳ 2", 
+    grade: "8", 
+    category: "Tài liệu học tập", 
+    uploadDate: "2026-06-14", 
+    fileSize: "Drive Link",
+    driveUrl: "https://drive.google.com/file/d/1Xxxxxx_Mã_File_Mẫu_2/view?usp=sharing"
+  },
+  { 
+    id: "PDF003", 
+    title: "Chuyên đề Nâng cao: Bất đẳng thức và Cực trị Hình học", 
+    grade: "9", 
+    category: "Tài liệu học tập", 
+    uploadDate: "2026-06-15", 
+    fileSize: "Drive Link",
+    driveUrl: "https://drive.google.com/file/d/1Xxxxxx_Mã_File_Mẫu_3/view?usp=sharing"
+  },
 ]
 
 export function StudentPortal({ userName, onLogout }: StudentPortalProps) {
@@ -75,9 +98,19 @@ export function StudentPortal({ userName, onLogout }: StudentPortalProps) {
     setQuiz({ title, topic })
   }
 
-  // Hàm giả lập tải file PDF
-  const handleDownloadPdf = (title: string) => {
-    alert(`Đang tải xuống tệp tài liệu: ${title}`)
+  // Hàm chuyển đổi linh hoạt link Google Drive xem thông thường sang link tải trực tiếp (.pdf)
+  const getDownloadUrl = (url: string) => {
+    try {
+      if (!url.includes("drive.google.com")) return url;
+      // Trích xuất mã ID nằm giữa chuỗi /d/ và /view
+      const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      if (match && match[1]) {
+        return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+      }
+      return url;
+    } catch {
+      return url;
+    }
   }
 
   if (quiz) {
@@ -194,43 +227,55 @@ export function StudentPortal({ userName, onLogout }: StudentPortalProps) {
           )}
           {view === "analytics" && <AnalyticsView />}
 
-          {/* VIEW DANH SÁCH FILE ĐỀ THI PDF CHO HỌC SINH TẢI VỀ */}
+          {/* VIEW DANH SÁCH FILE ĐỀ THI PDF ĐÃ ĐƯỢC KẾT NỐI VỚI GOOGLE DRIVE */}
           {view === "pdfs" && (
             <div className="space-y-6">
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Kho tài liệu & Đề thi PDF</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Tải về các file đề thi tự luận, đề ôn tập nâng cao do thầy cô phát hành.</p>
+                <h1 className="text-2xl font-bold text-foreground">Kho tài liệu &amp; Đề thi PDF</h1>
+                <p className="mt-1 text-sm text-muted-foreground">Xem trực tiếp hoặc tải về hệ thống bài tập tự luận nâng cao do thầy cô phát hành.</p>
               </div>
 
               <div className="grid gap-4">
                 {MOCK_DOWNLOADABLE_PDFS.map((pdf) => (
                   <div key={pdf.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-all hover:border-primary/30">
-                    <div className="flex gap-4 items-center">
+                    <div className="flex gap-4 items-center min-w-0 flex-1">
                       <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 shrink-0">
                         <FileText className="w-6 h-6" />
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0 flex-1">
                         <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                           {pdf.category}
                         </span>
-                        <h3 className="text-base font-bold text-foreground leading-tight">{pdf.title}</h3>
+                        <h3 className="text-base font-bold text-foreground leading-tight truncate">{pdf.title}</h3>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
                           <span>Dành cho: Khối {pdf.grade}</span>
                           <span>•</span>
-                          <span>Dung lượng: {pdf.fileSize}</span>
+                          <span>Nguồn: Google Drive</span>
                           <span>•</span>
                           <span>Ngày đăng: {pdf.uploadDate}</span>
                         </div>
                       </div>
                     </div>
                     
-                    <Button 
-                      onClick={() => handleDownloadPdf(pdf.title)}
-                      variant="outline" 
-                      className="w-full sm:w-auto gap-2 shrink-0 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                    >
-                      <Download className="h-4 w-4" /> Tải về máy (.pdf)
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                      {/* Nút 1: Xem trực tiếp tài liệu trên tab mới của trình duyệt */}
+                      <a 
+                        href={pdf.driveUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted/60 text-center"
+                      >
+                        <Eye className="h-4 w-4 text-muted-foreground" /> Xem trực tiếp
+                      </a>
+
+                      {/* Nút 2: Tải trực tiếp file về máy tính/điện thoại */}
+                      <a 
+                        href={getDownloadUrl(pdf.driveUrl)}
+                        className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 text-center"
+                      >
+                        <Download className="h-4 w-4" /> Tải về máy (.pdf)
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -251,7 +296,6 @@ function HomeView({
   onPractice: () => void
   onStart: (title: string) => void
 }) {
-  // Tính toán tỷ lệ chuyên cần từ Mock Data dữ liệu điểm danh
   const presentCount = MOCK_ATTENDANCE.filter(a => a.status === "Present").length
   const attendanceRate = Math.round((presentCount / MOCK_ATTENDANCE.length) * 100)
 
@@ -314,7 +358,7 @@ function HomeView({
           </div>
         </div>
 
-        {/* BẢNG THEO DÕI ĐIỂM DANH CÁ NHÂN (Mới tích hợp) */}
+        {/* BẢNG THEO DÕI ĐIỂM DANH CÁ NHÂN */}
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -400,7 +444,7 @@ function GradesView({
       <div>
         <h1 className="text-2xl font-bold text-foreground">Chọn khối lớp</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Chương trình bám sát chuẩn kiến thức của Bộ Giáo dục & Đào tạo.
+          Chương trình bám sát chuẩn kiến thức của Bộ Giáo dục &amp; Đào tạo.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
