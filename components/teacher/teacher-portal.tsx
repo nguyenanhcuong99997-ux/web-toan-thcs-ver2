@@ -67,6 +67,9 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
   const [newPdfTitle, setNewPdfTitle] = useState("")
   const [newPdfGrade, setNewPdfGrade] = useState("9")
   const [newPdfCategory, setNewPdfCategory] = useState("Thi thử vào 10")
+  
+  // State mới để lưu trữ File thật từ hệ thống máy tính
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   // Hàm xử lý thay đổi nhanh trạng thái điểm danh của học sinh
   const handleAttendanceChange = (studentId: string, status: "Present" | "Absent_Excused" | "Absent_Unexcused") => {
@@ -79,10 +82,46 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
     }))
   }
 
+  // Hàm định dạng kích thước byte sang KB hoặc MB hiển thị trực quan
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i]
+  }
+
+  // Hàm lắng nghe sự kiện chọn tệp của thẻ input
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      if (file.type !== "application/pdf") {
+        alert("Hệ thống chỉ chấp nhận định dạng tệp tin .pdf")
+        return
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        alert("Kích thước tệp tin vượt quá giới hạn 15MB")
+        return
+      }
+      setSelectedFile(file)
+      // Tự động điền tiêu đề bằng tên file (bỏ đuôi mở rộng) nếu giáo viên chưa nhập gì
+      if (!newPdfTitle.trim()) {
+        setNewPdfTitle(file.name.replace(/\.[^/.]+$/, ""))
+      }
+    }
+  }
+
   // Hàm xử lý khi giáo viên bấm nút Upload file PDF lên hệ thống
   const handleAddPdf = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newPdfTitle.trim()) return
+    if (!newPdfTitle.trim()) {
+      alert("Vui lòng điền tiêu đề cho tài liệu!")
+      return
+    }
+    if (!selectedFile) {
+      alert("Vui lòng đính kèm tệp tin tài liệu PDF trước khi phát hành!")
+      return
+    }
 
     const newPdf = {
       id: `PDF00${pdfList.length + 1}`,
@@ -90,12 +129,15 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
       grade: newPdfGrade,
       category: newPdfCategory,
       uploadDate: new Date().toISOString().split('T')[0],
-      fileSize: "1.5 MB"
+      fileSize: formatFileSize(selectedFile.size) // Lấy dung lượng thật của file vừa chọn
     }
 
     setPdfList([newPdf, ...pdfList])
+    
+    // Reset toàn bộ form sau khi đưa dữ liệu lên state thành công
     setNewPdfTitle("")
-    alert("Đã đăng tải cấu hình tệp đề thi PDF thành công lên hệ thống học viên!")
+    setSelectedFile(null)
+    alert("Đã đăng tải và phát hành tệp đề thi PDF thành công lên hệ thống học viên!")
   }
 
   return (
@@ -262,7 +304,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
             </div>
           )}
 
-          {/* VIEW QUẢN LÝ TẢI FILE ĐỀ THI PDF MỚI TÍCH HỢP */}
+          {/* VIEW QUẢN LÝ TẢI FILE ĐỀ THI PDF ĐÃ SỬA TÍNH NĂNG THẬT */}
           {view === "pdf-manager" && (
             <div className="space-y-6">
               <div>
@@ -317,9 +359,45 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                       </div>
                     </div>
 
-                    <div className="border-2 border-dashed border-border rounded-xl p-4 text-center bg-muted/20 cursor-pointer hover:border-primary/50 transition-colors">
-                      <FileText className="h-7 w-7 mx-auto text-muted-foreground mb-1" />
-                      <span className="text-xs text-muted-foreground block">Nhấp để đính kèm tệp .pdf (Tối đa 15MB)</span>
+                    {/* VÙNG CHỌN FILE THẬT ĐƯỢC CẬP NHẬT */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground">Đính kèm tệp tin:</label>
+                      <label 
+                        className={cn(
+                          "border-2 border-dashed rounded-xl p-4 text-center bg-muted/20 cursor-pointer hover:border-primary/50 transition-all block relative",
+                          selectedFile ? "border-emerald-500/50 bg-emerald-50/10" : "border-border"
+                        )}
+                      >
+                        {/* Thẻ input file ẩn hoàn toàn để xử lý logic */}
+                        <input 
+                          type="file"
+                          accept=".pdf"
+                          className="hidden"
+                          onChange={handleFileSelect}
+                        />
+                        
+                        {selectedFile ? (
+                          <div className="space-y-1">
+                            <CheckCircle className="h-7 w-7 mx-auto text-emerald-500 mb-1" />
+                            <span className="text-xs font-semibold text-foreground block max-w-[200px] mx-auto truncate">
+                              {selectedFile.name}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground block font-medium">
+                              ({formatFileSize(selectedFile.size)}) - Sẵn sàng
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <FileText className="h-7 w-7 mx-auto text-muted-foreground mb-1" />
+                            <span className="text-xs text-muted-foreground block font-medium">
+                              Nhấp để chọn file .pdf từ thiết bị
+                            </span>
+                            <span className="text-[10px] text-muted-foreground/60 block">
+                              Dung lượng tối đa hỗ trợ: 15MB
+                            </span>
+                          </div>
+                        )}
+                      </label>
                     </div>
 
                     <Button type="submit" className="w-full gap-1.5 py-2">
@@ -371,7 +449,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
   )
 }
 
-// Chỉnh sửa component con OverviewView nhận prop để hiển thị động số lượng tài liệu PDF lên KPI
+// Component con OverviewView nhận prop hiển thị động số lượng tài liệu PDF lên KPI
 function OverviewView({ pdfCount }: { pdfCount: number }) {
   const totalStudents = STUDENTS.length
   const avgScore = (STUDENTS.reduce((a, s) => a + s.avgScore, 0) / totalStudents).toFixed(1)
