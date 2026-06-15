@@ -1,12 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { GraduationCap, Users, Mail, Lock, Sigma, ShieldCheck, Sparkles } from "lucide-react"
+import { GraduationCap, Users, User, Lock, Sigma, ShieldCheck, Sparkles, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import type { Role } from "@/lib/types"
+
+// 1. Định nghĩa danh sách tài khoản hợp lệ cố định trên hệ thống (Sử dụng ID và mật khẩu do bạn cấp)
+const VALID_USERS = [
+  // Tài khoản Giáo viên mặc định
+  { userId: "truemath", password: "888888", name: "Thầy Nguyễn Anh Cường", role: "teacher" },
+  
+  // Danh sách tài khoản Học sinh mẫu (Bạn có thể thêm các học sinh khác vào đây)
+  { userId: "truemath_hocsinh9", password: "student123", name: "Nguyễn Minh Anh", role: "student" },
+  { userId: "truemath_hocsinh8", password: "student123", name: "Trần Văn Bình", role: "student" },
+]
 
 interface AuthGateProps {
   onLogin: (role: Role, name: string) => void
@@ -14,17 +24,25 @@ interface AuthGateProps {
 
 export function AuthGate({ onLogin }: AuthGateProps) {
   const [role, setRole] = useState<Role>("student")
-  const [mode, setMode] = useState<"login" | "signup">("login")
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
+  const [userId, setUserId] = useState("")
   const [password, setPassword] = useState("")
-  const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string }>({})
+  const [errors, setErrors] = useState<{ userId?: string; password?: string; auth?: string }>({})
 
   function validate() {
     const next: typeof errors = {}
-    if (mode === "signup" && name.trim().length < 2) next.name = "Vui lòng nhập họ và tên."
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = "Email không hợp lệ."
-    if (password.length < 6) next.password = "Mật khẩu cần ít nhất 6 ký tự."
+    const cleanId = userId.trim().toLowerCase()
+
+    if (!cleanId) {
+      next.userId = "Vui lòng nhập ID đăng nhập."
+    } else if (role === "student" && !cleanId.startsWith("truemath_")) {
+      // Bắt buộc học sinh phải nhập đúng định dạng cấu pháp Truemath_*****
+      next.userId = "ID học sinh hợp lệ phải bắt đầu bằng cụm 'Truemath_'"
+    }
+
+    if (!password) {
+      next.password = "Vui lòng nhập mật khẩu."
+    }
+
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -32,13 +50,24 @@ export function AuthGate({ onLogin }: AuthGateProps) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate()) return
-    const displayName =
-      mode === "signup" && name.trim()
-        ? name.trim()
-        : role === "teacher"
-          ? "Thầy Nguyễn Anh Cường"
-          : "Nguyễn Minh Anh"
-    onLogin(role, displayName)
+
+    const cleanId = userId.trim().toLowerCase()
+
+    // --- XỬ LÝ ĐĂNG NHẬP BẰNG ID ---
+    // So khớp chính xác ID (không phân biệt hoa thường), Mật khẩu và Vai trò đã chọn
+    const userFound = VALID_USERS.find(
+      (u) => u.userId.toLowerCase() === cleanId && u.password === password && u.role === role
+    )
+
+    if (userFound) {
+      // Đăng nhập đúng thông tin -> Cho phép vào hệ thống
+      onLogin(userFound.role as Role, userFound.name)
+    } else {
+      // Sai thông tin -> Hiện thông báo chặn lại công khai
+      setErrors({
+        auth: "Mã ID đăng nhập hoặc mật khẩu không chính xác cho vai trò này. Vui lòng kiểm tra lại!"
+      })
+    }
   }
 
   return (
@@ -51,7 +80,7 @@ export function AuthGate({ onLogin }: AuthGateProps) {
           </div>
           <div>
             <p className="text-lg font-semibold leading-tight">TrueMath Toán THCS</p>
-            <p className="text-sm text-sidebar-foreground/60">Hệ thống Ôn thi & Quản lý</p>
+            <p className="text-sm text-sidebar-foreground/60">Hệ thống Ôn thi &amp; Quản lý</p>
           </div>
         </div>
 
@@ -65,9 +94,9 @@ export function AuthGate({ onLogin }: AuthGateProps) {
           </p>
           <ul className="space-y-3">
             {[
-              { icon: Sparkles, text: "Ngân hàng đề bám sát chương trình Bộ GD&ĐT" },
+              { icon: Sparkles, text: "Ngân hàng đề bám sát chương trình Bộ GD&amp;ĐT" },
               { icon: ShieldCheck, text: "Chấm điểm tức thì kèm lời giải chi tiết" },
-              { icon: Users, text: "Quản lý học viên & theo dõi tiến độ lớp học" },
+              { icon: Users, text: "Quản lý học viên &amp; theo dõi tiến độ lớp học" },
             ].map((item) => (
               <li key={item.text} className="flex items-center gap-3 text-sm text-sidebar-foreground/80">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-accent">
@@ -96,13 +125,9 @@ export function AuthGate({ onLogin }: AuthGateProps) {
 
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-foreground">
-                {mode === "login" ? "Đăng nhập hệ thống" : "Tạo tài khoản mới"}
-              </h2>
+              <h2 className="text-2xl font-bold text-foreground">Đăng nhập hệ thống</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {mode === "login"
-                  ? "Chào mừng quay trở lại! Vui lòng chọn vai trò của bạn."
-                  : "Đăng ký để bắt đầu hành trình chinh phục môn Toán."}
+                Chào mừng quay trở lại! Vui lòng chọn vai trò và điền tài khoản ID được cấp.
               </p>
             </div>
 
@@ -110,12 +135,13 @@ export function AuthGate({ onLogin }: AuthGateProps) {
             <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
               <button
                 type="button"
-                onClick={() => setRole("student")}
+                onClick={() => {
+                  setRole("student")
+                  setErrors({})
+                }}
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
-                  role === "student"
-                    ? "bg-card text-primary shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
+                  role === "student" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <GraduationCap className="h-4 w-4" />
@@ -123,12 +149,13 @@ export function AuthGate({ onLogin }: AuthGateProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setRole("teacher")}
+                onClick={() => {
+                  setRole("teacher")
+                  setErrors({})
+                }}
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
-                  role === "teacher"
-                    ? "bg-card text-primary shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
+                  role === "teacher" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Users className="h-4 w-4" />
@@ -136,38 +163,40 @@ export function AuthGate({ onLogin }: AuthGateProps) {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-              {mode === "signup" && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="name">Họ và tên</Label>
-                  <Input
-                    id="name"
-                    placeholder="Nguyễn Văn A"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                  {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-                </div>
-              )}
+            {/* Alert Error Đăng nhập sai */}
+            {errors.auth && (
+              <div className="mb-4 flex items-center gap-2 rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-xs font-semibold text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{errors.auth}</span>
+              </div>
+            )}
 
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="userId">
+                  {role === "teacher" ? "Tài khoản Giáo viên" : "Tài khoản ID Học sinh"}
+                </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="email@truong.edu.vn"
+                    id="userId"
+                    type="text"
+                    placeholder={role === "teacher" ? "Ví dụ: Truemath" : "Cú pháp: Truemath_*****"}
                     className="pl-9"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value)}
                   />
                 </div>
-                {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+                {errors.userId && <p className="text-xs text-destructive">{errors.userId}</p>}
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="password">Mật khẩu</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Mật khẩu</Label>
+                  <button type="button" className="text-xs font-medium text-primary hover:underline">
+                    Quên mật khẩu?
+                  </button>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -182,36 +211,21 @@ export function AuthGate({ onLogin }: AuthGateProps) {
                 {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
               </div>
 
-              {mode === "login" && (
-                <div className="flex justify-end">
-                  <button type="button" className="text-sm font-medium text-primary hover:underline">
-                    Quên mật khẩu?
-                  </button>
-                </div>
-              )}
-
               <Button type="submit" className="w-full" size="lg">
-                {mode === "login" ? "Đăng nhập" : "Đăng ký"}
+                Đăng nhập
               </Button>
             </form>
+          </div>
 
-            <p className="mt-6 text-center text-sm text-muted-foreground">
-              {mode === "login" ? "Chưa có tài khoản? " : "Đã có tài khoản? "}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode(mode === "login" ? "signup" : "login")
-                  setErrors({})
-                }}
-                className="font-semibold text-primary hover:underline"
-              >
-                {mode === "login" ? "Đăng ký ngay" : "Đăng nhập"}
-              </button>
-            </p>
+          {/* Hộp thông tin tài khoản phục vụ việc kiểm thử hệ thống định dạng ID mới */}
+          <div className="mt-4 rounded-xl border border-dashed border-border p-3.5 bg-muted/40 text-[11px] text-muted-foreground space-y-1">
+            <p className="font-bold text-foreground">Thông tin đăng nhập hệ thống:</p>
+            <p>• Tab <b className="text-primary">Học sinh</b>: Nhập ID dạng <span className="underline">Truemath_hocsinh9</span> (MK: student123)</p>
+            <p>• Tab <b className="text-primary">Giáo viên</b>: Nhập ID là <span className="underline">Truemath</span> (MK: 888888)</p>
           </div>
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            Bằng việc tiếp tục, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật.
+            Lưu ý: Tính năng tạo tài khoản tự do đã đóng. Vui lòng liên hệ Giáo viên để nhận ID cá nhân.
           </p>
         </div>
       </div>
