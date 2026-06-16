@@ -22,6 +22,7 @@ import {
   Trash2,
   ExternalLink,
   Award,
+  DollarSign,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,7 @@ import { STUDENTS } from "@/lib/mock-data"
 import { StudentManagement } from "./student-management"
 import { LatexCreator } from "./latex-creator"
 
-type View = "overview" | "students" | "progress" | "create" | "attendance" | "pdf-manager"
+type View = "overview" | "students" | "progress" | "create" | "attendance" | "pdf-manager" | "tuition"
 
 interface TeacherPortalProps {
   userName: string
@@ -40,6 +41,7 @@ const NAV = [
   { id: "overview" as View, label: "Tổng quan", icon: LayoutDashboard },
   { id: "students" as View, label: "Quản lý Học viên", icon: Users },
   { id: "attendance" as View, label: "Điểm danh học sinh", icon: CheckSquare },
+  { id: "tuition" as View, label: "Tính học phí tháng", icon: DollarSign }, // Menu tính học phí mới tích hợp
   { id: "pdf-manager" as View, label: "Quản lý Đề PDF", icon: Upload },
   { id: "progress" as View, label: "Tiến độ Lớp học", icon: LineChart },
   { id: "create" as View, label: "Soạn đề bài (LaTeX)", icon: PenSquare },
@@ -77,6 +79,14 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
     "2026-06-15": { "1": "Present", "2": "Present", "3": "Absent_Excused" }
   })
   
+  // STATE MỚI: Cấu hình tháng xem học phí & học phí riêng cho từng học sinh
+  const [selectedMonth, setSelectedMonth] = useState<string>("2026-06")
+  const [studentPrices, setStudentPrices] = useState<{ [studentId: string]: number }>({
+    "1": 150000, // Đơn giá mặc định cho học sinh 1
+    "2": 150000, // Đơn giá mặc định cho học sinh 2
+    "3": 130000, // Ví dụ: Học sinh 3 được giảm trừ còn 130k/buổi
+  })
+
   const [pdfList, setPdfList] = useState(INITIAL_PDFS)
   const [newPdfTitle, setNewPdfTitle] = useState("")
   const [newPdfGrade, setNewPdfGrade] = useState("9")
@@ -94,6 +104,14 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
         [attendanceDate]: currentDayRecords
       }
     })
+  }
+
+  // Hàm cập nhật đơn giá học phí tùy chỉnh riêng cho từng học sinh
+  const handlePriceChange = (studentId: string, newPrice: number) => {
+    setStudentPrices(prev => ({
+      ...prev,
+      [studentId]: newPrice
+    }))
   }
 
   // Hàm xử lý Phát hành tài liệu Google Drive mới
@@ -129,7 +147,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
     let presentCount = 0
     let totalChecked = 0
 
-    // Duyệt qua toàn bộ lịch sử các ngày trong cơ sở dữ liệu tạm thời
     Object.keys(attendanceRecords).forEach((date) => {
       const record = attendanceRecords[date]?.[studentId]
       if (record) {
@@ -142,6 +159,43 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
 
     return { presentCount, totalChecked }
   }
+
+  // LOGIC HÀM TÍNH TOÁN CHI TIẾT HỌC PHÍ THEO THÁNG ĐƯỢC CHỌN
+  const calculateTuitionData = () => {
+    const datesInMonth = Object.keys(attendanceRecords).filter(date => date.startsWith(selectedMonth))
+    const totalLessons = datesInMonth.length
+
+    const summary = STUDENTS.map(student => {
+      let presentCount = 0
+      let absentCount = 0
+
+      datesInMonth.forEach(date => {
+        const status = attendanceRecords[date]?.[student.id]
+        if (status === "Present") {
+          presentCount++
+        } else if (status === "Absent_Excused" || status === "Absent_Unexcused") {
+          absentCount++
+        }
+      })
+
+      // Lấy đơn giá tùy chỉnh từ state, nếu chưa khai báo thì mặc định là 150.000đ
+      const currentPrice = studentPrices[student.id] !== undefined ? studentPrices[student.id] : 150000
+
+      return {
+        id: student.id,
+        name: student.name,
+        gradeId: student.gradeId,
+        presentCount,
+        absentCount,
+        pricePerLesson: currentPrice,
+        totalTuition: presentCount * currentPrice
+      }
+    })
+
+    return { totalLessons, summary }
+  }
+
+  const { totalLessons, summary: tuitionSummary } = calculateTuitionData()
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -247,7 +301,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                       <tr className="bg-muted/40 text-muted-foreground font-semibold border-b border-border">
                         <th className="px-6 py-4">Tên học viên</th>
                         <th className="px-6 py-4">Khối Lớp</th>
-                        {/* BỔ SUNG CỘT TỔNG SỐ BUỔI HỌC THEO YÊU CẦU */}
                         <th className="px-6 py-4 text-center bg-primary/5 text-primary font-bold">Tổng số buổi đi học</th>
                         <th className="px-6 py-4 text-center">Trạng thái điểm danh</th>
                       </tr>
@@ -255,8 +308,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                     <tbody className="divide-y divide-border">
                       {STUDENTS.map((student) => {
                         const currentStatus = attendanceRecords[attendanceDate]?.[String(student.id)] || "Present"
-                        
-                        // Gọi hàm tính toán tổng số buổi đi học tích lũy của học sinh này
                         const { presentCount, totalChecked } = getStudentAttendanceStats(String(student.id))
 
                         return (
@@ -264,7 +315,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                             <td className="px-6 py-4 font-semibold text-foreground">{student.name}</td>
                             <td className="px-6 py-4 text-muted-foreground">Lớp {student.gradeId}</td>
                             
-                            {/* HIỂN THỊ TỔNG SỐ BUỔI HỌC TÍCH LŨY */}
                             <td className="px-6 py-4 text-center bg-primary/5">
                               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
                                 <Award className="h-3.5 w-3.5" />
@@ -323,6 +373,93 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                 <Button onClick={() => alert(`Đã đồng bộ và cập nhật thành công sổ điểm danh ngày ${attendanceDate} vào cơ sở dữ liệu TrueMath!`)}>
                   Lưu sổ điểm danh
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW TÍNH HỌC PHÍ TÙY CHỈNH THEO TỪNG HỌC SINH */}
+          {view === "tuition" && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground">Tổng hợp &amp; Điều chỉnh Học phí</h1>
+                  <p className="mt-1 text-sm text-muted-foreground">Theo dõi số buổi đi học thực tế và cấu hình đơn giá riêng biệt cho từng học sinh.</p>
+                </div>
+                
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-2 text-sm font-medium shadow-sm">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <span className="text-xs text-muted-foreground">Tháng tính phí:</span>
+                  <input 
+                    type="month" 
+                    value={selectedMonth} 
+                    onChange={(e) => setSelectedMonth(e.target.value)} 
+                    className="border-none bg-transparent text-xs font-semibold focus:outline-none focus:ring-0 cursor-pointer" 
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">
+                  Số buổi tổ chức dạy học trong tháng <strong className="text-primary">{selectedMonth}</strong> ghi nhận:
+                </span>
+                <span className="text-lg font-bold text-primary">{totalLessons} buổi</span>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-muted/40 text-muted-foreground font-semibold border-b border-border">
+                        <th className="px-6 py-4">Tên học viên</th>
+                        <th className="px-6 py-4">Khối</th>
+                        <th className="px-6 py-4 text-center">Số buổi đi học</th>
+                        <th className="px-6 py-4 text-center">Số buổi vắng</th>
+                        <th className="px-6 py-4 text-center w-48">Đơn giá / Buổi học</th>
+                        <th className="px-6 py-4 text-right">Thành tiền</th>
+                        <th className="px-6 py-4 text-center">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {tuitionSummary.map((item) => (
+                        <tr key={item.id} className="hover:bg-muted/10 transition-colors">
+                          <td className="px-6 py-4 font-semibold text-foreground">{item.name}</td>
+                          <td className="px-6 py-4 text-muted-foreground">Lớp {item.gradeId}</td>
+                          <td className="px-6 py-4 text-center font-bold text-emerald-600">{item.presentCount} buổi</td>
+                          <td className="px-6 py-4 text-center text-amber-600">{item.absentCount} buổi</td>
+                          
+                          {/* Ô thay đổi đơn giá học phí trực tiếp cho từng học sinh */}
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-1 border border-border bg-background rounded-lg px-2 py-1 max-w-[150px] mx-auto focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+                              <input 
+                                type="number" 
+                                step="5000"
+                                value={item.pricePerLesson} 
+                                onChange={(e) => handlePriceChange(String(item.id), Number(e.target.value))} 
+                                className="w-full border-none bg-transparent text-xs font-bold text-foreground text-right focus:outline-none" 
+                              />
+                              <span className="text-[11px] text-muted-foreground font-semibold">đ</span>
+                            </div>
+                          </td>
+
+                          {/* Thành tiền tính toán Real-time = (số buổi đi học) * (đơn giá của HS đó) */}
+                          <td className="px-6 py-4 text-right font-extrabold text-foreground text-sm">
+                            {item.totalTuition.toLocaleString("vi-VN")} đ
+                          </td>
+                          
+                          <td className="px-6 py-4 text-center">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => alert(`Đã gửi biên lai học phí tháng ${selectedMonth} tới phụ huynh em ${item.name}.\n- Số buổi đi học: ${item.presentCount}\n- Áp dụng đơn giá: ${item.pricePerLesson.toLocaleString("vi-VN")}đ/buổi\n- Tổng tiền: ${item.totalTuition.toLocaleString("vi-VN")}đ`)}
+                            >
+                              Gửi thông báo
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
