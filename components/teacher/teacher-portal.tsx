@@ -23,6 +23,7 @@ import {
   ExternalLink,
   Award,
   DollarSign,
+  HelpCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -41,7 +42,7 @@ const NAV = [
   { id: "overview" as View, label: "Tổng quan", icon: LayoutDashboard },
   { id: "students" as View, label: "Quản lý Học viên", icon: Users },
   { id: "attendance" as View, label: "Điểm danh học sinh", icon: CheckSquare },
-  { id: "tuition" as View, label: "Tính học phí tháng", icon: DollarSign }, // Menu tính học phí mới tích hợp
+  { id: "tuition" as View, label: "Tính học phí tháng", icon: DollarSign },
   { id: "pdf-manager" as View, label: "Quản lý Đề PDF", icon: Upload },
   { id: "progress" as View, label: "Tiến độ Lớp học", icon: LineChart },
   { id: "create" as View, label: "Soạn đề bài (LaTeX)", icon: PenSquare },
@@ -73,18 +74,20 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
 
   // Quản lý State điểm danh & Phát hành đề PDF
   const [attendanceDate, setAttendanceDate] = useState<string>("2026-06-15")
+  
+  // Dữ liệu điểm danh mẫu (Để trống ngày 15/06/2026 để kiểm tra tính năng "Chưa điểm danh")
   const [attendanceRecords, setAttendanceRecords] = useState<{ [date: string]: { [studentId: string]: string } }>({
     "2026-06-12": { "1": "Present", "2": "Absent_Excused", "3": "Present" },
     "2026-06-14": { "1": "Present", "2": "Present", "3": "Present" },
-    "2026-06-15": { "1": "Present", "2": "Present", "3": "Absent_Excused" }
+    // Ngày 2026-06-15 hiện tại chưa có bản ghi nào để kiểm tra trạng thái mặc định mới
   })
   
-  // STATE MỚI: Cấu hình tháng xem học phí & học phí riêng cho từng học sinh
+  // Quản lý cấu hình tháng xem học phí & học phí riêng cho từng học sinh
   const [selectedMonth, setSelectedMonth] = useState<string>("2026-06")
   const [studentPrices, setStudentPrices] = useState<{ [studentId: string]: number }>({
-    "1": 150000, // Đơn giá mặc định cho học sinh 1
-    "2": 150000, // Đơn giá mặc định cho học sinh 2
-    "3": 130000, // Ví dụ: Học sinh 3 được giảm trừ còn 130k/buổi
+    "1": 150000, 
+    "2": 150000, 
+    "3": 130000, 
   })
 
   const [pdfList, setPdfList] = useState(INITIAL_PDFS)
@@ -93,7 +96,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
   const [newPdfCategory, setNewPdfCategory] = useState("Thi thử vào 10")
   const [newPdfDriveUrl, setNewPdfDriveUrl] = useState("")
 
-  // Hàm xử lý thay đổi trạng thái điểm danh riêng biệt
+  // Hàm xử lý thay đổi trạng thái điểm danh
   const handleAttendanceChange = (studentId: string, status: "Present" | "Absent_Excused" | "Absent_Unexcused") => {
     setAttendanceRecords(prev => {
       const currentDayRecords = prev[attendanceDate] ? { ...prev[attendanceDate] } : {}
@@ -106,7 +109,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
     })
   }
 
-  // Hàm cập nhật đơn giá học phí tùy chỉnh riêng cho từng học sinh
+  // Hàm cập nhật đơn giá học phí tùy chỉnh
   const handlePriceChange = (studentId: string, newPrice: number) => {
     setStudentPrices(prev => ({
       ...prev,
@@ -142,7 +145,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
     alert("Đã liên kết và phát hành tài liệu Google Drive thành công lên hệ thống học viên!")
   }
 
-  // --- LOGIC HÀM TÍNH TỔNG SỐ BUỔI HỌC CỦA TỪNG HỌC SINH ---
+  // Thống kê tổng số buổi đi học trong lịch sử
   const getStudentAttendanceStats = (studentId: string) => {
     let presentCount = 0
     let totalChecked = 0
@@ -160,10 +163,9 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
     return { presentCount, totalChecked }
   }
 
-  // LOGIC HÀM TÍNH TOÁN CHI TIẾT HỌC PHÍ THEO THÁNG ĐƯỢC CHỌN
+  // Tính toán chi tiết học phí theo tháng dựa trên các buổi có trạng thái "Present"
   const calculateTuitionData = () => {
     const datesInMonth = Object.keys(attendanceRecords).filter(date => date.startsWith(selectedMonth))
-    const totalLessons = datesInMonth.length
 
     const summary = STUDENTS.map(student => {
       let presentCount = 0
@@ -178,7 +180,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
         }
       })
 
-      // Lấy đơn giá tùy chỉnh từ state, nếu chưa khai báo thì mặc định là 150.000đ
       const currentPrice = studentPrices[student.id] !== undefined ? studentPrices[student.id] : 150000
 
       return {
@@ -192,7 +193,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
       }
     })
 
-    return { totalLessons, summary }
+    return { totalLessons: datesInMonth.length, summary }
   }
 
   const { totalLessons, summary: tuitionSummary } = calculateTuitionData()
@@ -274,13 +275,13 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
           {view === "progress" && <ProgressView />}
           {view === "create" && <LatexCreator />}
 
-          {/* VIEW ĐIỂM DANH HỌC SINH */}
+          {/* VIEW ĐIỂM DANH HỌC SINH (ĐÃ ĐƯỢC TỐI ƯU THÔNG MINH) */}
           {view === "attendance" && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h1 className="text-2xl font-bold text-foreground">Điểm danh học sinh hàng ngày</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">Theo dõi và cập nhật trạng thái chuyên cần lớp trực tuyến.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Theo dõi trạng thái chuyên cần. Các nút sẽ ở trạng thái chờ cho đến khi bạn tích chọn.</p>
                 </div>
                 <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-2 text-sm font-medium shadow-sm">
                   <Calendar className="h-4 w-4 text-primary" />
@@ -301,13 +302,15 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                       <tr className="bg-muted/40 text-muted-foreground font-semibold border-b border-border">
                         <th className="px-6 py-4">Tên học viên</th>
                         <th className="px-6 py-4">Khối Lớp</th>
-                        <th className="px-6 py-4 text-center bg-primary/5 text-primary font-bold">Tổng số buổi đi học</th>
-                        <th className="px-6 py-4 text-center">Trạng thái điểm danh</th>
+                        <th className="px-6 py-4 text-center bg-primary/5 text-primary font-bold">Lịch sử đi học</th>
+                        <th className="px-6 py-4 text-center">Trạng thái hôm nay</th>
+                        <th className="px-6 py-4 text-center">Chọn trạng thái điểm danh</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {STUDENTS.map((student) => {
-                        const currentStatus = attendanceRecords[attendanceDate]?.[String(student.id)] || "Present"
+                        // THAY ĐỔI QUAN TRỌNG: Mặc định là undefined nếu chưa bấm điểm danh ngày này
+                        const currentStatus = attendanceRecords[attendanceDate]?.[String(student.id)]
                         const { presentCount, totalChecked } = getStudentAttendanceStats(String(student.id))
 
                         return (
@@ -322,43 +325,64 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                               </span>
                             </td>
 
+                            {/* Cột hiển thị trạng thái hiện tại một cách rõ ràng */}
+                            <td className="px-6 py-4 text-center">
+                              {!currentStatus ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground border border-dashed border-neutral-300">
+                                  <HelpCircle className="h-3 w-3" /> Chưa điểm danh
+                                </span>
+                              ) : currentStatus === "Present" ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                                  <CheckCircle className="h-3 w-3" /> Có mặt
+                                </span>
+                              ) : currentStatus === "Absent_Excused" ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
+                                  <AlertCircle className="h-3 w-3" /> Vắng có phép
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700">
+                                  <XCircle className="h-3 w-3" /> Vắng ko phép
+                                </span>
+                              )}
+                            </td>
+
                             <td className="px-6 py-4">
                               <div className="flex justify-center items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => handleAttendanceChange(String(student.id), "Present")}
                                   className={cn(
-                                    "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
+                                    "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all shadow-sm",
                                     currentStatus === "Present" 
-                                      ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm font-bold" 
-                                      : "bg-background border-border text-muted-foreground hover:text-foreground"
+                                      ? "bg-emerald-600 border-emerald-600 text-white font-bold" 
+                                      : "bg-background border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                                   )}
                                 >
-                                  <CheckCircle className="h-3.5 w-3.5" /> Có mặt
+                                  Có mặt
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleAttendanceChange(String(student.id), "Absent_Excused")}
                                   className={cn(
-                                    "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
+                                    "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all shadow-sm",
                                     currentStatus === "Absent_Excused" 
-                                      ? "bg-amber-50 border-amber-300 text-amber-700 shadow-sm font-bold" 
-                                      : "bg-background border-border text-muted-foreground hover:text-foreground"
+                                      ? "bg-amber-500 border-amber-500 text-white font-bold" 
+                                      : "bg-background border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                                   )}
                                 >
-                                  <AlertCircle className="h-3.5 w-3.5" /> Vắng có phép
+                                  Vắng có phép
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleAttendanceChange(String(student.id), "Absent_Unexcused")}
                                   className={cn(
-                                    "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
+                                    "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all shadow-sm",
                                     currentStatus === "Absent_Unexcused" 
-                                      ? "bg-rose-50 border-rose-300 text-rose-700 shadow-sm font-bold" 
-                                      : "bg-background border-border text-muted-foreground hover:text-foreground"
+                                      ? "bg-rose-600 border-rose-600 text-white font-bold" 
+                                      : "bg-background border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                                   )}
                                 >
-                                  <XCircle className="h-3.5 w-3.5" /> Vắng không phép
+                                  Vắng không phép
                                 </button>
                               </div>
                             </td>
@@ -377,7 +401,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
             </div>
           )}
 
-          {/* VIEW TÍNH HỌC PHÍ TÙY CHỈNH THEO TỪNG HỌC SINH */}
+          {/* VIEW TÍNH HỌC PHÍ THÁNG */}
           {view === "tuition" && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -427,7 +451,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                           <td className="px-6 py-4 text-center font-bold text-emerald-600">{item.presentCount} buổi</td>
                           <td className="px-6 py-4 text-center text-amber-600">{item.absentCount} buổi</td>
                           
-                          {/* Ô thay đổi đơn giá học phí trực tiếp cho từng học sinh */}
                           <td className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center gap-1 border border-border bg-background rounded-lg px-2 py-1 max-w-[150px] mx-auto focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
                               <input 
@@ -441,7 +464,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                             </div>
                           </td>
 
-                          {/* Thành tiền tính toán Real-time = (số buổi đi học) * (đơn giá của HS đó) */}
                           <td className="px-6 py-4 text-right font-extrabold text-foreground text-sm">
                             {item.totalTuition.toLocaleString("vi-VN")} đ
                           </td>
@@ -464,7 +486,7 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
             </div>
           )}
 
-          {/* VIEW QUẢN LÝ LINK ĐỀ THI PDF TỪ GOOGLE DRIVE */}
+          {/* VIEW QUẢN LÝ LINK ĐỀ THI PDF */}
           {view === "pdf-manager" && (
             <div className="space-y-6">
               <div>
@@ -473,7 +495,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {/* Form thêm tài liệu */}
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4 self-start">
                   <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                     <Upload className="h-4 w-4 text-primary" /> Phát hành tài liệu mới
@@ -540,7 +561,6 @@ export function TeacherPortal({ userName, onLogout }: TeacherPortalProps) {
                   </form>
                 </div>
 
-                {/* Danh sách các tài liệu PDF đã đưa lên */}
                 <div className="lg:col-span-2 space-y-3">
                   <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Danh sách đề đang hiển thị trên hệ thống học sinh</h2>
                   <div className="space-y-2.5">
